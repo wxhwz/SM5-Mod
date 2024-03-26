@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="SM5_Resulution.cpp">
+    <ClCompile Include="DLLMain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\include\3rd party\safetyhook.cpp">

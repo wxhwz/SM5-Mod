@@ -12,18 +12,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Utils", "Utils", "{8CDD8C99
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|x64 = Debug|x64
-		Debug|x86 = Debug|x86
-		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{38C1FB7A-78B2-4816-8359-A948E822487B}.Debug|x64.ActiveCfg = Debug|x64
-		{38C1FB7A-78B2-4816-8359-A948E822487B}.Debug|x64.Build.0 = Debug|x64
-		{38C1FB7A-78B2-4816-8359-A948E822487B}.Debug|x86.ActiveCfg = Debug|Win32
-		{38C1FB7A-78B2-4816-8359-A948E822487B}.Debug|x86.Build.0 = Debug|Win32
-		{38C1FB7A-78B2-4816-8359-A948E822487B}.Release|x64.ActiveCfg = Release|x64
-		{38C1FB7A-78B2-4816-8359-A948E822487B}.Release|x64.Build.0 = Release|x64
 		{38C1FB7A-78B2-4816-8359-A948E822487B}.Release|x86.ActiveCfg = Release|Win32
 		{38C1FB7A-78B2-4816-8359-A948E822487B}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection

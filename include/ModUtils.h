@@ -298,48 +298,48 @@ namespace ModUtils
             && memoryInfo.State;
     }
 
-    // 定义一个计时器类 Timer
-    class Timer
-    {
-    public:
-        // 构造函数，传入计时器的时间间隔（以毫秒为单位）
-        Timer(unsigned int intervalMs)
-        {
-            this->intervalMs = intervalMs;
-        }
-        // 检查是否到达指定的时间间隔
-        bool Check()
-        {
-            // 如果是第一次检查，重置计时器并标记为非第一次检查
-            if (firstCheck)
-            {
-                Reset();
-                firstCheck = false;
-            }
-            // 获取当前时间点
-            auto now = std::chrono::system_clock::now();
-            // 计算与上一次检查时间点的时间差
-            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastPassedCheckTime);
-            // 如果时间差达到设定的时间间隔，更新上一次检查时间并返回 true
-            if (diff.count() >= intervalMs)
-            {
-                lastPassedCheckTime = now;
-                return true;
-            }
-            // 未达到时间间隔，返回 false
-            return false;
-        }
-        // 重置计时器，将上一次检查时间设置为当前时间
-        void Reset()
-        {
-            lastPassedCheckTime = std::chrono::system_clock::now();
-        }
+    //// 定义一个计时器类 Timer
+    //class Timer
+    //{
+    //public:
+    //    // 构造函数，传入计时器的时间间隔（以毫秒为单位）
+    //    Timer(unsigned int intervalMs)
+    //    {
+    //        this->intervalMs = intervalMs;
+    //    }
+    //    // 检查是否到达指定的时间间隔
+    //    bool Check()
+    //    {
+    //        // 如果是第一次检查，重置计时器并标记为非第一次检查
+    //        if (firstCheck)
+    //        {
+    //            Reset();
+    //            firstCheck = false;
+    //        }
+    //        // 获取当前时间点
+    //        auto now = std::chrono::system_clock::now();
+    //        // 计算与上一次检查时间点的时间差
+    //        auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastPassedCheckTime);
+    //        // 如果时间差达到设定的时间间隔，更新上一次检查时间并返回 true
+    //        if (diff.count() >= intervalMs)
+    //        {
+    //            lastPassedCheckTime = now;
+    //            return true;
+    //        }
+    //        // 未达到时间间隔，返回 false
+    //        return false;
+    //    }
+    //    // 重置计时器，将上一次检查时间设置为当前时间
+    //    void Reset()
+    //    {
+    //        lastPassedCheckTime = std::chrono::system_clock::now();
+    //    }
 
-    private:
-        unsigned int intervalMs = 0;  // 计时器的时间间隔（毫秒）
-        bool firstCheck = true;        // 是否是第一次检查
-        std::chrono::system_clock::time_point lastPassedCheckTime;  // 上一次检查的时间点
-    };
+    //private:
+    //    unsigned int intervalMs = 0;  // 计时器的时间间隔（毫秒）
+    //    bool firstCheck = true;        // 是否是第一次检查
+    //    std::chrono::system_clock::time_point lastPassedCheckTime;  // 上一次检查的时间点
+    //};
 
 
     static std::string _GetModuleName(bool mainProcessModule)
