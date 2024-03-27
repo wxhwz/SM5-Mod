@@ -443,6 +443,62 @@ namespace ModUtils
             muLogFile.flush();
         }
     }
+    template<typename... TypesR>
+    inline static void Warn(TypesR... args)
+    {
+        // 打开当前模组的日志文件
+        open_ModLogFile();
+
+        // 创建一个字符串流
+        std::stringstream stream;
+
+        // 将模组名和消息拼接到字符串流中
+        stream << get_CurrentModName() << " > ";
+        (stream << ... << args) << std::endl;
+        // 获取当前控制台的句柄
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        // 设置文字颜色为红色
+        SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
+        // 输出到控制台
+        std::cout << stream.str();
+        // 为了之后的输出重置文字颜色
+        SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+
+        // 如果日志文件已经打开，将日志写入文件
+        if (muLogFile.is_open())
+        {
+            muLogFile << stream.str();
+            muLogFile.flush();
+        }
+    }
+    template<typename... TypesG>
+    inline static void Log_Success(TypesG... args)
+    {
+        // 打开当前模组的日志文件
+        open_ModLogFile();
+
+        // 创建一个字符串流
+        std::stringstream stream;
+
+        // 将模组名和消息拼接到字符串流中
+        stream << get_CurrentModName() << " > ";
+        (stream << ... << args) << std::endl;
+        // 获取当前控制台的句柄
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        // 设置文字颜色为红色
+        SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+        // 输出到控制台
+        std::cout << stream.str();
+        // 为了之后的输出重置文字颜色
+        SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+
+        // 如果日志文件已经打开，将日志写入文件
+        if (muLogFile.is_open())
+        {
+            muLogFile << stream.str();
+            muLogFile.flush();
+        }
+    }
 
     static void close_Log()
     {
@@ -581,14 +637,63 @@ namespace ModUtils
     }
 
 
+    //inline static std::vector<std::string> tokenify_AobString(std::string aob)
+    //{
+    //    std::istringstream iss(aob);
+    //    // 使用流迭代器将字符串分割为标记
+    //    std::vector<std::string> aobTokens{
+    //        std::istream_iterator<std::string>{iss},
+    //        std::istream_iterator<std::string>{}
+    //    };
+    //    return aobTokens;
+    //}
+
     inline static std::vector<std::string> tokenify_AobString(std::string aob)
     {
-        std::istringstream iss(aob);
-        // 使用流迭代器将字符串分割为标记
-        std::vector<std::string> aobTokens{
-            std::istream_iterator<std::string>{iss},
-            std::istream_iterator<std::string>{}
-        };
+        int muAobMaskLen = strlen(muAobMask);
+        std::string newAobStr;
+        std::remove_copy_if(aob.begin(), aob.end(), std::back_inserter(newAobStr), [](char c) { return std::isspace(c); });
+        std::vector<std::string> aobTokens;
+        if (muAobMaskLen == 1)
+        {
+            int temp = 0;
+            for (size_t i = 0; i < newAobStr.length(); i++)
+            {
+                if (newAobStr[i] == muAobMask[0])
+                {
+                    aobTokens.push_back({ muAobMask });
+                    temp = 0;
+                }
+                else
+                {
+                    if (temp < 1)
+                    {
+                        temp++;
+                    }
+                    else
+                    {
+                        aobTokens.push_back(newAobStr.substr(i - 1, 2));
+                        temp = 0;
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i + 2 < newAobStr.length(); i += 2)
+            {
+                if (newAobStr.substr(i, 2) == muAobMask)
+                {
+                    aobTokens.push_back({ muAobMask });
+                }
+                else
+                {
+                    aobTokens.push_back(newAobStr.substr(i, 2));
+                }
+
+            }
+        }
+
         return aobTokens;
     }
 
@@ -1387,7 +1492,8 @@ namespace ModUtils
             // 打印停止信息，显示错误弹窗并返回 0
             Log("Stopped at: ", convert_NumberToHexString(module_end), ", num regions checked: ", checked_regions);
             std::string error = "AOB not found! (" + aob + ")";
-            ShowErrorPopup(error);
+            //ShowErrorPopup(error);
+            Warn(error);
             return {};
         }
         return merged_results;
@@ -2097,7 +2203,7 @@ namespace ModUtils
         //	specificAddress += 64;
         //}
         std::string error = "Failed to allocate memory! " + convert_NumberToHexString(address);
-        Log(error);
+        Warn(error);
         ShowErrorPopup(error);
         return 0;
 
@@ -2173,7 +2279,7 @@ namespace ModUtils
         }
 
         std::string error = "Failed to allocate memory! " + convert_NumberToHexString(address);
-        Log(error);
+        Warn(error);
         ShowErrorPopup(error);
         return 0;
 

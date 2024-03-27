@@ -51,7 +51,13 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>$(SolutionDir)include\3rd party\Detours\lib.X86\detours.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>COPY "F:\codeanalysis\win32\SM5 Mod\Release\SM5_Resolution.dll" "F:\真三国无双5日版\mods\"
+COPY "F:\codeanalysis\win32\SM5 Mod\Release\SM5_Resolution.dll" "F:\Dynasty Warriors 6\mods\"
+COPY "F:\codeanalysis\win32\SM5 Mod\Release\SM5_Resolution.dll" "F:\Shin Sangokumusou 5\mods\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\include\3rd party\safetyhook.cpp" />

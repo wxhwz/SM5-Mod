@@ -1,13 +1,13 @@
-#include <Windows.h>
-#include <xmmintrin.h>
-#include <fstream>
+
 #include "ModUtils.h"  // 引入自定义的 ModUtils 模块
 #include "safetyhook.hpp"
+#include "Detours\include\detours.h"
+#include "d3d9.h" 
 
-#define ZHT 1
+#define JP 1
 #define EN 0
 
-using namespace ModUtils;
+
 using namespace mINI;
 
 int width = 1920;
@@ -15,16 +15,108 @@ int height = 1080;
 float aspect = (float)width / (float)height;
 float default_aspect = 16.0f / 9.0f;
 int version = -1;
+std::string final_str;
 
 // 获取当前进程的 ID 和基地址
 DWORD processId = GetCurrentProcessId();
-uintptr_t BaseAddress = get_ProcessBaseAddress(processId);
+uintptr_t BaseAddress = ModUtils::get_ProcessBaseAddress(processId);
+
+typedef int(WINAPI GetSystemMetrics_t)(int nIndex);
+GetSystemMetrics_t* Ori_GetSystemMetrics = GetSystemMetrics;
+GetSystemMetrics_t Hooked_GetSystemMetrics;
+
+
+typedef IDirect3D9* (WINAPI Direct3DCreate9_t)(UINT SDKVersion);
+Direct3DCreate9_t* Ori_Direct3DCreate9 = (Direct3DCreate9_t*)GetProcAddress(GetModuleHandleA("d3d9.dll"), "Direct3DCreate9");
+Direct3DCreate9_t HookedDirect3DCreate9;
+
+int WINAPI Hooked_GetSystemMetrics(int nIndex)
+{
+    if (nIndex == 0)
+    {
+        return width;
+    }
+    else if (nIndex == 1)
+    {
+        return height;
+    }
+
+    return Ori_GetSystemMetrics(nIndex);
+}
+
+
+void ApplyResolution()
+{
+    ModUtils::Log("Starting resolution modification ...");
+
+    //Pass the resolution check
+    ModUtils::write_Bytes(ModUtils::AobScan("0C ?? ?? ?? 41020000 00", L"")[0] + 8, std::vector<BYTE>{0x01});
+
+    //width
+    uintptr_t addr1 = ModUtils::AobScan("80070000 ?? 38040000 EB", L"")[0];
+    ModUtils::mem_Copy(addr1, (uintptr_t)&width, 4);
+    ModUtils::mem_Copy(ModUtils::AobScan("40060000 ???? ?? 80070000 ???? ?? 00040000", L"")[0] + 7, (uintptr_t)&width, 4);
+    ModUtils::mem_Copy(ModUtils::AobScan("80070000 C3 ?? 00040000", L"")[0], (uintptr_t)&width, 4);
+    //heights
+    ModUtils::mem_Copy(addr1 + 5, (uintptr_t)&height, 4);
+    ModUtils::mem_Copy(ModUtils::AobScan("38040000 ???? ?? 40020000", L"")[0], (uintptr_t)&height, 4);
+    ModUtils::mem_Copy(ModUtils::AobScan("38040000 C3 ?? 40020000", L"")[0], (uintptr_t)&height, 4);
+    ModUtils::mem_Copy(ModUtils::AobScan("38040000 C3 ?? 00030000", L"")[0], (uintptr_t)&height, 4);
+
+    uintptr_t aspect_hookaddr1 = ModUtils::AobScan("28 D9 ?? 3C010000 D9 ?? ?? 28", L"")[0] + 1;
+    uintptr_t aspect_hookaddr2 = ModUtils::AobScan("8C000000 D9 ?? ?? 04 D9", L"")[0] + 4;
+
+    static SafetyHookMid aspect_hook;
+    static SafetyHookMid aspect_hook_map;
+    if (aspect != 16.0f / 9.0f)
+    {
+        aspect_hook = safetyhook::create_mid(aspect_hookaddr1,
+            [](SafetyHookContext& ctx)
+            {
+                if (*reinterpret_cast<float*>(ctx.ebp + 0x13C) == default_aspect)
+                {
+                    *reinterpret_cast<float*>(ctx.ebp + 0x13C) = aspect;
+                }
+            });
+        aspect_hook_map = safetyhook::create_mid(aspect_hookaddr2,
+            [](SafetyHookContext& ctx)
+            {
+                if (*reinterpret_cast<float*>(ctx.esi + 0x8C) == default_aspect)
+                {
+                    *reinterpret_cast<float*>(ctx.esi + 0x8C) = aspect;
+                }
+            });
+    }
+    ModUtils::write_ByteStr(ModUtils::AobScan("31 39 32 30 78 31 30 38 30 20 2F 20 31 39 32 30 78 31 30 38 30", L"")[0], final_str);
+    ModUtils::Log("Modification completed, current resolution is ", width, " * ", height);
+    ModUtils::Warn("If you want to set the game to full screen, you must ensure that this resolution is present in the system!");
+
+    ModUtils::close_Log();
+}
+
+IDirect3D9* WINAPI HookedDirect3DCreate9(UINT SDKVersion)
+{
+    ApplyResolution();
+    auto rv = Ori_Direct3DCreate9(SDKVersion);
+    //if (rv == nullptr)
+    //    ; // 如果获取失败，可以添加处理逻辑
+
+    // 使用 Detours 库进行函数钩取
+    DetourTransactionBegin();
+    DetourUpdateThread(GetCurrentThread());
+    DetourDetach(&(PVOID&)Ori_Direct3DCreate9, HookedDirect3DCreate9);
+    DetourTransactionCommit();
+
+    return rv;
+}
+
+
 
 // 读取配置文件
 void ReadConfig()
 {
     // 从模块路径读取配置文件
-    INIFile config(get_ModFolderPath() + "\\config.ini");
+    INIFile config(ModUtils::get_ModFolderPath() + "\\config.ini");
     INIStructure ini;
 
     if (config.read(ini))
@@ -40,14 +132,14 @@ void ReadConfig()
         config.write(ini, true);
     }
 
-    Log("Resolution config file: ", get_ModFolderPath(), "\\config.ini");
-    Log("Config resolution: ", width, " * ", height);
+    ModUtils::Log("Resolution config file: ", ModUtils::get_ModFolderPath(), "\\config.ini");
+    ModUtils::Log("Config resolution: ", width, " * ", height);
 
     // 拼接文件路径
-    std::string filePath = get_ModFolderPath() + "\\load.txt";
+    std::string filePath = ModUtils::get_ModFolderPath() + "\\load.txt";
     // 检查文件是否已经存在
     if (std::filesystem::exists(filePath)) {
-        Log("load.txt already exists, skipping creation.");
+        ModUtils::Log("load.txt already exists, skipping creation.");
     }
     else {
         // 尝试打开文件
@@ -58,7 +150,7 @@ void ReadConfig()
             outputFile << "0" << std::endl;
             // 关闭文件
             outputFile.close();
-            Log("load.txt creation completed.");
+            ModUtils::Log("load.txt creation completed.");
         }
         else {
             std::cerr << "Unable to open the file：" << filePath << std::endl;
@@ -90,26 +182,26 @@ int write_savedata(size_t offset, std::string hexString)
     char* userProfile;
     size_t len;
     if (_dupenv_s(&userProfile, &len, "USERPROFILE") != 0) {
-        Log("Failed to get the user profile path.");
+        ModUtils::Log("Failed to get the user profile path.");
         return 1;
     }
 
     // 构建文件路径
     if (!userProfile) {
-        Log("Failed to get the user profile path.");
+        ModUtils::Log("Failed to get the user profile path.");
         return 1;
     }
-    std::string filePath;
-    if (version == ZHT)
+    std::string filePath = "";
+    if (version == JP)
         filePath = std::string(userProfile) + "\\Documents\\KOEI\\Shin Sangokumusou 5\\Savedata\\save.dat";
-    else
+    else if (version == EN)
         filePath = std::string(userProfile) + "\\Documents\\KOEI\\Dynasty Warriors 6\\Savedata\\save.dat";
 
     // 打开文件，以二进制方式打开
     std::fstream file(filePath, std::ios::in | std::ios::out | std::ios::binary);
 
     if (!file.is_open()) {
-        Log("Failed to open the savedata.");
+        ModUtils::Log("Failed to open the savedata. You may need to manually adjust the game resolution to 1080p.");
         return 1;
     }
 
@@ -132,7 +224,7 @@ int write_savedata(size_t offset, std::string hexString)
     ss << std::hex << std::setw(2) << std::setfill('0') << offset; // 设置宽度为2，不足两位用0填充
     // 从 stringstream 获取结果字符串
     std::string offset_hex_str = ss.str();
-    Log("Savedata modification complete. ", "Offset:", offset_hex_str, " Bytestr:", hexString);
+    ModUtils::Log("Savedata modification complete. ", "Offset:", offset_hex_str, " Bytestr:", hexString);
     return 0;
 }
 
@@ -145,22 +237,20 @@ int write_savedata(size_t offset, std::string hexString)
 // 主线程函数
 DWORD WINAPI MainThread(LPVOID lpParam)
 {
-    std::string temp;
-    ModUtils::read_BytesReturnStr(temp, BaseAddress + 0x8250, 7);
-    if (temp == "BE 40 06 00 00 EB 11")
+    if (ModUtils::AobScan("44 79 6E 61 73 74 79 20 57 61 72 72 69 6F 72 73 20 36", L"") != std::vector<uintptr_t>{})
     {
         version = EN;
-        Log("Game is EN ...");
+        /*ModUtils::Log("Game is EN ...");*/
     }
-    else if (ModUtils::read_BytesReturnStr(temp, BaseAddress + 0x8210, 7))
+    else if (ModUtils::AobScan("53 68 69 6E 20 53 61 6E 67 6F 6B 75 6D 75 73 6F 75 20 35", L"") != std::vector<uintptr_t>{})
     {
-        if (temp == "BE 40 06 00 00 EB 11")
-            version = ZHT;
-        Log("Game is ZHT ...");
+
+        version = JP;
+        /*ModUtils::Log("Game is JP ...");*/
     }
     else
     {
-        Log("Unknown game version ...");
+        ModUtils::Warn("Unknown game version ...");
         return 0;
     }
 
@@ -169,90 +259,26 @@ DWORD WINAPI MainThread(LPVOID lpParam)
     write_memery(BaseAddress + 0x20EF90, "B8 09 00 00 00 90");*/
     std::string widthString = convert_int_to_targetByte(width);
     std::string heightString = convert_int_to_targetByte(height);
-    std::string final_str = widthString + " 78 " + heightString + " 20 2F 20 " + widthString + " 78 " + heightString;
-    static SafetyHookMid aspect_hook;
-    static SafetyHookMid aspect_hook_map;
+    final_str = widthString + " 78 " + heightString + " 20 2F 20 " + widthString + " 78 " + heightString;
+
     write_savedata(0xD0, "09");
-    Log("Starting resolution modification ...");
 
 
-    if (version == EN)
+
+
+    DetourTransactionBegin();
+    DetourUpdateThread(GetCurrentThread());
+    if (width > GetSystemMetrics(0) || height > GetSystemMetrics(1))
     {
-        mem_Copy(BaseAddress + 0x8258, (uintptr_t)&width, 4);
-        mem_Copy(BaseAddress + 0x8863, (uintptr_t)&width, 4);
-        mem_Copy(BaseAddress + 0x20D85B, (uintptr_t)&width, 4);
-
-        mem_Copy(BaseAddress + 0x825D, (uintptr_t)&height, 4);
-        mem_Copy(BaseAddress + 0x88A6, (uintptr_t)&height, 4);
-        mem_Copy(BaseAddress + 0x20D8CB, (uintptr_t)&height, 4);
-        mem_Copy(BaseAddress + 0x20D94D, (uintptr_t)&height, 4);
-        write_ByteStr(BaseAddress + 0x317770, final_str);
-
-        if (aspect != 16.0f / 9.0f)
-        {
-            aspect_hook = safetyhook::create_mid(BaseAddress + 0x238049,
-                [](SafetyHookContext& ctx)
-                {
-                    if (*reinterpret_cast<float*>(ctx.ebp + 0x13C) == default_aspect)
-                    {
-                        *reinterpret_cast<float*>(ctx.ebp + 0x13C) = aspect;
-                    }
-                });
-            aspect_hook_map = safetyhook::create_mid(BaseAddress + 0x26318D,
-                [](SafetyHookContext& ctx)
-                {
-                    if (*reinterpret_cast<float*>(ctx.esi + 0x8C) == default_aspect)
-                    {
-                        *reinterpret_cast<float*>(ctx.esi + 0x8C) = aspect;
-                    }
-                });
-        }
-
+        ModUtils::Warn("Config resolution ", width, " * ", height, " is larger than the screen resolution ", GetSystemMetrics(0), " * ", GetSystemMetrics(1), " ...");
+        DetourAttach(&(PVOID&)Ori_GetSystemMetrics, Hooked_GetSystemMetrics);
     }
-    else if (version == ZHT)
-    {
-        mem_Copy(BaseAddress + 0x8218, (uintptr_t)&width, 4);
-        mem_Copy(BaseAddress + 0x8823, (uintptr_t)&width, 4);
-        mem_Copy(BaseAddress + 0x20EF4B, (uintptr_t)&width, 4);
+    DetourAttach(&(PVOID&)Ori_Direct3DCreate9, HookedDirect3DCreate9);
 
-        mem_Copy(BaseAddress + 0x821D, (uintptr_t)&height, 4);
-        mem_Copy(BaseAddress + 0x8866, (uintptr_t)&height, 4);
-        mem_Copy(BaseAddress + 0x20f03d, (uintptr_t)&height, 4);
-        mem_Copy(BaseAddress + 0x20EFBB, (uintptr_t)&height, 4);
-        //aspect
-        //mem_Copy(BaseAddress + 0x3268c4, (uintptr_t)&aspect, 4);
-        write_ByteStr(BaseAddress + 0x319d40, final_str);
-
-        if (aspect != 16.0f / 9.0f)
-        {
-            aspect_hook = safetyhook::create_mid(BaseAddress + 0x239799,
-                [](SafetyHookContext& ctx)
-                {
-                    if (*reinterpret_cast<float*>(ctx.ebp + 0x13C) == default_aspect)
-                    {
-                        *reinterpret_cast<float*>(ctx.ebp + 0x13C) = aspect;
-                    }
-                });
-
-            aspect_hook_map = safetyhook::create_mid(BaseAddress + 0x2648CD,
-                [](SafetyHookContext& ctx)
-                {
-                    if (*reinterpret_cast<float*>(ctx.esi + 0x8C) == default_aspect)
-                    {
-                        *reinterpret_cast<float*>(ctx.esi + 0x8C) = aspect;
-                    }
-                });
-        }
-
-    }
+    DetourTransactionCommit();
 
 
 
-
-
-    Log("Modification completed, current resolution is ", width, " * ", height);
-
-    close_Log();
     return 0;
 }
 
