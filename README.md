@@ -6,7 +6,8 @@
 * Supports ultrawide monitors (no HUD fix)  
 
 ## How to Use:
-1. Unzip to the game folder.
-2. Set the desired resolution in **mods/Resolution_for_SM5/config.ini**.
+1. Download the release file.
+2. Unzip to the game folder.
+3. Set the desired resolution in **mods/Resolution_for_SM5/config.ini**.
 
 **If you want to set the game to full screen mode, you must ensure that this resolution is available in the system!**
